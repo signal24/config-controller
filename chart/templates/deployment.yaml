@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "app.name" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        {{- include "app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+    spec:
+      containers:
+        - name: config-controller
+          image: {{ .Values.image }}
+          resources: {}
+      serviceAccountName: {{ include "app.name" . }}-sa
