@@ -127,7 +127,7 @@ export class Manager {
                 } catch (err) {
                     this.logger.error({ err }, `Failed to create secret ${secretName}`);
                 }
-            } else if (secret.metadata!.labels!['config.s24.dev/source-configmap-version'] !== configMap!.metadata!.resourceVersion) {
+            } else if (secret.metadata!.labels?.['config.s24.dev/source-configmap-version'] !== configMap!.metadata!.resourceVersion) {
                 this.logger.info(`ConfigMap for ${secretName} updated. Updating secret.`);
                 try {
                     this.cache[secretName].secret = await this.createSecretForConfigMap(configMap!, secret);
