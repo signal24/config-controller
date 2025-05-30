@@ -7,7 +7,7 @@ Based on the [@signal24/config](https://github.com/signal24/node-config) package
 ## Installation
 
 ```
-helm repo add signal24.github.io/charts
+helm repo add signal24 https://signal24.github.io/charts
 helm repo update
 helm install --namespace kube-system config-controller signal24/config-controller
 ```
