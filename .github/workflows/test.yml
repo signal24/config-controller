@@ -1,0 +1,45 @@
+on:
+  push:
+    branches:
+      - '**'
+
+name: Test
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.x
+      - run: corepack enable
+      - run: yarn install --immutable
+      - run: yarn format
+      - run: git diff --exit-code
+      - run: npx tsc --noEmit
+      - run: yarn test
+      - id: detect_version_change
+        name: Detect version change
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git fetch --prune --unshallow
+          LATEST_TAG=$(git describe --tags --abbrev=0 || echo 0.0.0)
+          PREVIOUS_VERSION=$(git show ${LATEST_TAG}:package.json | jq -r '.version')
+          CURRENT_VERSION=$(cat package.json | jq -r '.version')
+          if [ "$PREVIOUS_VERSION" != "$CURRENT_VERSION" ]; then
+            echo "Version changed from $PREVIOUS_VERSION to $CURRENT_VERSION"
+            echo "VERSION_CHANGED=true" >> $GITHUB_ENV
+            echo "PACKAGE_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          else
+            echo "Version did not change"
+          fi
+      - name: Tag version
+        if: env.VERSION_CHANGED == 'true'
+        run: |
+          git config user.name "$(git log -1 --pretty=format:'%an')"
+          git config user.email "$(git log -1 --pretty=format:'%ae')"
+          git tag v${PACKAGE_VERSION}
+          git push origin v${PACKAGE_VERSION}

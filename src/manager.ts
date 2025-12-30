@@ -97,7 +97,7 @@ export class Manager {
             })
             .finally(() => {
                 this.isReady = true;
-                this.isPendingSync && setTimeout(() => this.syncSecrets(), 0);
+                if (this.isPendingSync) setTimeout(() => this.syncSecrets(), 0);
             });
     }
 
@@ -113,8 +113,12 @@ export class Manager {
             if (!configMap) {
                 this.logger.info(`ConfigMap for ${secretName} not found. Deleting secret.`);
                 try {
-                    await this.k8sClient.coreV1Api.deleteNamespacedSecret(secret!.metadata!.name!, secret!.metadata!.namespace!);
+                    await this.k8sClient.coreV1Api.deleteNamespacedSecret({
+                        name: secret!.metadata!.name!,
+                        namespace: secret!.metadata!.namespace!
+                    });
                     delete this.cache[secretName];
+                    continue;
                 } catch (err) {
                     this.logger.error({ err }, `Failed to delete secret ${secretName}`);
                 }
@@ -138,7 +142,7 @@ export class Manager {
         }
     }
 
-    private async createSecretForConfigMap(configMap: k8s.V1ConfigMap, existingSecret?: k8s.V1ConfigMap): Promise<k8s.V1Secret> {
+    private async createSecretForConfigMap(configMap: k8s.V1ConfigMap, existingSecret?: k8s.V1Secret): Promise<k8s.V1Secret> {
         const sourceKey = configMap.metadata?.labels?.['config.s24.dev/source-key'] ?? '.env';
         const sourceData = configMap.data?.[sourceKey];
         if (sourceData === undefined) {
@@ -163,7 +167,10 @@ export class Manager {
         // TODO: There's a security risk involved here. Figure out how to make this more secure. Maybe require an annotation on the source secret?
         // const [secretNs, secretName] = keySecretName.includes('/') ? keySecretName.split('/') : [sourceNs, keySecretName];
         const [secretNs, secretName] = [sourceNs, keySecretName];
-        const { body: secret } = await this.k8sClient.coreV1Api.readNamespacedSecret(secretName, secretNs);
+        const secret = await this.k8sClient.coreV1Api.readNamespacedSecret({
+            name: secretName,
+            namespace: secretNs
+        });
         if (secret.data?.[keySecretKey] === undefined) {
             throw new Error(`Key ${keySecretKey} not found in secret ${keySecretName}`);
         }
@@ -199,9 +206,13 @@ export class Manager {
             secret.data![key] = Buffer.from(data[key]).toString('base64');
         }
 
-        const { body } = existingSecret
-            ? await this.k8sClient.coreV1Api.replaceNamespacedSecret(secret.metadata!.name!, secret.metadata!.namespace!, secret)
-            : await this.k8sClient.coreV1Api.createNamespacedSecret(secret.metadata!.namespace!, secret);
-        return body;
+        const result = existingSecret
+            ? await this.k8sClient.coreV1Api.replaceNamespacedSecret({
+                  name: secret.metadata!.name!,
+                  namespace: secret.metadata!.namespace!,
+                  body: secret
+              })
+            : await this.k8sClient.coreV1Api.createNamespacedSecret({ namespace: secret.metadata!.namespace!, body: secret });
+        return result;
     }
 }
